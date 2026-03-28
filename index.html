@@ -84,7 +84,6 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
   pointer-events:none; z-index:1;
 }
-const GEMINI_KEY = 'AIzaSyCMYJYSGaaz_Su-MT_pFF8Bn2rWRadDhlU';
 /* ══════════════ LAYOUT ══════════════ */
 #app { display:flex; height:100vh; overflow:hidden; position:relative; z-index:2; }
 
@@ -1078,7 +1077,7 @@ select.inp { appearance:none; cursor:pointer; }
 // ══════════════════════════════════════════
 // GEMINI API CONFIG
 // ══════════════════════════════════════════
-const GEMINI_KEY = ''; // <-- COLLE TA CLÉ ICI  ex: 'AIzaSy...'
+const GEMINI_KEY = 'AIzaSyCMYJYSGaaz_Su-MT_pFF8Bn2rWRadDhlU'; // <-- COLLE TA CLÉ ICI  ex: 'AIzaSy...'
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 async function callAI(messages, maxTok = 1400) {
