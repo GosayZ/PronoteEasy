@@ -1475,7 +1475,7 @@ function persist() {
 //   Ex: 'https://pronote-easy-proxy.onrender.com'
 //   Laisse vide pour utiliser le mode demo (Claude.ai uniquement)
 // ═══════════════════════════════════════════
-const PROXY_URL = 'https://pronote-proxy-hifp.onrender.com'; // <-- COLLE TON URL RENDER ICI
+const PROXY_URL = ''; // <-- COLLE TON URL RENDER ICI
 
 async function callAI(messages, maxTok = 1400) {
   const body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens: maxTok, messages });
@@ -1484,7 +1484,7 @@ async function callAI(messages, maxTok = 1400) {
   const endpoints = [];
 
   // 1. Proxy perso (Render) — le meilleur, zéro CORS
-  if (PROXY_URL) endpoints.push({ url: PROXY_URL.replace(/\/$/'') + '/ai', direct: false });
+  if (PROXY_URL) endpoints.push({ url: PROXY_URL.trimEnd().replace(/\/+$/, '') + '/ai', direct: false });
 
   // 2. Appel direct (fonctionne dans Claude.ai artifacts, pas GitHub Pages)
   endpoints.push({ url: 'https://api.anthropic.com/v1/messages', direct: true });
