@@ -45,6 +45,7 @@ body::before {
   content:'';
   position: fixed;
   inset: 0;
+  z-index: -1;
   background:
     radial-gradient(ellipse 80% 50% at 20% 10%, rgba(108,71,255,0.06) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0,229,195,0.04) 0%, transparent 50%),
@@ -57,6 +58,7 @@ body::after {
   content:'';
   position: fixed;
   inset: 0;
+  z-index: -1;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
   pointer-events: none;
   z-index: 1;
@@ -66,7 +68,7 @@ body::after {
 #alerts-banner {
   position: sticky;
   top: 0;
-  z-index: 300;
+  z-index: 150;
   display: none;
 }
 
@@ -201,8 +203,6 @@ header {
 
 /* MAIN */
 main {
-  position: relative;
-  z-index: 2;
   padding: 28px;
   max-width: 1200px;
   margin: 0 auto;
@@ -1430,6 +1430,17 @@ select.inp { appearance: none; cursor: pointer; }
 <div class="toast" id="toast"></div>
 
 <script>
+// ─── API KEY BANNER ───
+function checkKey() {
+  if (GEMINI_KEY) return;
+  if (document.getElementById('key-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'key-banner';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;background:linear-gradient(90deg,#ff3355,#ff4d8d);color:#fff;padding:12px 20px;font-size:0.75rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:monospace;';
+  b.innerHTML = '<span>🔑</span><span><strong>Clé Gemini manquante !</strong> Ouvre index.html ligne 1478 → colle ta clé dans GEMINI_KEY → <a href="https://aistudio.google.com" target="_blank" style="color:#fff;text-decoration:underline;font-weight:bold">aistudio.google.com</a> (gratuit)</span>';
+  document.body.prepend(b);
+}
+
 // ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
@@ -1475,7 +1486,7 @@ function persist() {
 // 2. "Get API Key" → "Create API key"
 // 3. Colle ta clé ici :
 // ═══════════════════════════════════════════
-const GEMINI_KEY = ''AIzaSyCMYJYSGaaz_Su-MT_pFF8Bn2rWRadDhlU; // <-- COLLE TA CLÉ ICI  ex: 'AIzaSy...'
+const GEMINI_KEY = 'AIzaSyCMYJYSGaaz_Su-MT_pFF8Bn2rWRadDhlU'; // <-- COLLE TA CLÉ ICI  ex: 'AIzaSy...'
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
@@ -1518,7 +1529,7 @@ async function callAI(messages, maxTok = 1400) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
-      signal: AbortSignal.timeout(40000),
+      signal: (() => { const c = new AbortController(); setTimeout(() => c.abort(), 40000); return c.signal; })(),
     });
 
     if (!r.ok) {
@@ -2253,9 +2264,21 @@ function toast(msg, type='ok') {
 }
 
 // ═══════════════════════════════════════════
+// GEMINI KEY BANNER
+// ═══════════════════════════════════════════
+function checkKey() {
+  if (!GEMINI_KEY || GEMINI_KEY.trim() === '') {
+    const b = document.createElement('div');
+    b.id = 'key-banner';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#ff3355,#ff4d8d);color:#fff;padding:12px 20px;font-size:0.78rem;display:flex;align-items:center;gap:10px;font-family:JetBrains Mono,monospace;';
+    b.innerHTML = '<span>🔑</span><span>Clé Gemini manquante — ouvre <strong>index.html ligne 1478</strong> et colle ta clé <code style="background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:4px">GEMINI_KEY = \'AIzaSy...\'</code> → obiens-la sur <a href="https://aistudio.google.com" target="_blank" style="color:#fff;text-decoration:underline">aistudio.google.com</a></span><button onclick="document.getElementById(\'key-banner\').remove()" style="margin-left:auto;background:none;border:none;color:#fff;cursor:pointer;font-size:1rem">✕</button>';
+    document.body.prepend(b);
+  }
+}
+
+// ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
-// Check API key
 checkKey();
 
 // Set default dates
