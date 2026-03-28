@@ -1470,78 +1470,78 @@ function persist() {
 }
 
 // ═══════════════════════════════════════════
-// API CONFIG
-// ▶ Colle ici l'URL de ton proxy Render après déploiement
-//   Ex: 'https://pronote-easy-proxy.onrender.com'
-//   Laisse vide pour utiliser le mode demo (Claude.ai uniquement)
+// API CONFIG — GEMINI (100% GRATUIT)
+// 1. Va sur aistudio.google.com
+// 2. "Get API Key" → "Create API key"
+// 3. Colle ta clé ici :
 // ═══════════════════════════════════════════
-const PROXY_URL = ''; // <-- COLLE TON URL RENDER ICI
+const GEMINI_KEY = ''AIzaSyCMYJYSGaaz_Su-MT_pFF8Bn2rWRadDhlU; // <-- COLLE TA CLÉ ICI  ex: 'AIzaSy...'
+
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 async function callAI(messages, maxTok = 1400) {
-  const body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens: maxTok, messages });
+  if (!GEMINI_KEY) {
+    throw new Error('Clé Gemini manquante ! Ouvre index.html ligne ~1478 et colle ta clé dans GEMINI_KEY.');
+  }
 
-  // Liste des endpoints à essayer dans l'ordre
-  const endpoints = [];
-
-  // 1. Proxy perso (Render) — le meilleur, zéro CORS
-  if (PROXY_URL) endpoints.push({ url: PROXY_URL.trimEnd().replace(/\/+$/, '') + '/ai', direct: false });
-
-  // 2. Appel direct (fonctionne dans Claude.ai artifacts, pas GitHub Pages)
-  endpoints.push({ url: 'https://api.anthropic.com/v1/messages', direct: true });
-
-  // 3. Proxies CORS publics (fallback, parfois instables)
-  endpoints.push({ url: 'https://corsproxy.io/?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), direct: false });
-  endpoints.push({ url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), direct: false });
-
-  let lastError = '';
-  for (const ep of endpoints) {
-    try {
-      const r = await fetch(ep.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        signal: AbortSignal.timeout(30000), // 30s timeout
-      });
-
-      if (!r.ok) {
-        const errText = await r.text().catch(() => '');
-        let errJson = {};
-        try { errJson = JSON.parse(errText); } catch(_) {}
-        const msg = errJson?.error?.message || errText.slice(0, 100) || `HTTP ${r.status}`;
-        lastError = msg;
-        console.warn(`[${ep.url}] ${r.status}:`, msg);
-        // 401 = clé API invalide, inutile d'essayer les autres
-        if (r.status === 401) throw new Error('Clé API invalide (401)');
-        continue;
+  // Convertir le format Anthropic → Gemini
+  const parts = [];
+  for (const msg of messages) {
+    if (typeof msg.content === 'string') {
+      parts.push({ text: msg.content });
+    } else if (Array.isArray(msg.content)) {
+      for (const block of msg.content) {
+        if (block.type === 'text') {
+          parts.push({ text: block.text });
+        } else if (block.type === 'image') {
+          parts.push({
+            inlineData: {
+              mimeType: block.source.media_type,
+              data: block.source.data
+            }
+          });
+        }
       }
-
-      const d = await r.json();
-      if (d.error) {
-        lastError = d.error.message || JSON.stringify(d.error);
-        console.warn(`[${ep.url}] API error:`, d.error);
-        continue;
-      }
-      if (!d.content) {
-        lastError = 'Réponse vide de l\'API';
-        continue;
-      }
-      return d; // ✅ succès
-
-    } catch(e) {
-      if (e.name === 'AbortError') { lastError = 'Timeout (30s)'; }
-      else if (e.message.includes('401')) throw e;
-      else lastError = e.message;
-      console.warn(`[${ep.url}] fetch fail:`, e.message);
     }
   }
 
-  // Tous les endpoints ont échoué
-  if (!PROXY_URL) {
-    throw new Error('API bloquée (CORS). Configure un proxy Render — voir le fichier proxy/server.js fourni.');
-  }
-  throw new Error('API inaccessible. Vérifie que ton proxy Render est bien démarré. Détail: ' + lastError);
-}
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      maxOutputTokens: maxTok,
+      temperature: 0.3,
+    }
+  });
 
+  try {
+    const r = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: AbortSignal.timeout(40000),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      const msg = err?.error?.message || `HTTP ${r.status}`;
+      if (r.status === 400) throw new Error('Clé Gemini invalide ou requête malformée : ' + msg);
+      if (r.status === 403) throw new Error('Accès refusé — vérifie ta clé Gemini (403)');
+      if (r.status === 429) throw new Error('Limite atteinte — réessaie dans 1 minute (429)');
+      throw new Error('Erreur Gemini : ' + msg);
+    }
+
+    const d = await r.json();
+    const text = d?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('Réponse vide de Gemini');
+
+    // Retourner au format Anthropic pour compatibilité
+    return { content: [{ type: 'text', text }] };
+
+  } catch(e) {
+    if (e.name === 'AbortError') throw new Error('Timeout — Gemini met trop de temps à répondre');
+    throw e;
+  }
+}
 function parseJSON(raw) {
   const m = raw.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Pas de JSON dans la réponse');
@@ -2255,6 +2255,9 @@ function toast(msg, type='ok') {
 // ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
+// Check API key
+checkKey();
+
 // Set default dates
 document.getElementById('n-date').value = new Date().toISOString().split('T')[0];
 document.getElementById('d-deadline').value = new Date().toISOString().split('T')[0];
