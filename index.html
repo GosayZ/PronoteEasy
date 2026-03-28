@@ -1470,24 +1470,76 @@ function persist() {
 }
 
 // ═══════════════════════════════════════════
-// API
+// API CONFIG
+// ▶ Colle ici l'URL de ton proxy Render après déploiement
+//   Ex: 'https://pronote-easy-proxy.onrender.com'
+//   Laisse vide pour utiliser le mode demo (Claude.ai uniquement)
 // ═══════════════════════════════════════════
+const PROXY_URL = 'https://pronote-proxy-hifp.onrender.com'; // <-- COLLE TON URL RENDER ICI
+
 async function callAI(messages, maxTok = 1400) {
   const body = JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens: maxTok, messages });
-  const urls = [
-    'https://api.anthropic.com/v1/messages',
-    'https://corsproxy.io/?url=https://api.anthropic.com/v1/messages',
-  ];
-  for (const url of urls) {
+
+  // Liste des endpoints à essayer dans l'ordre
+  const endpoints = [];
+
+  // 1. Proxy perso (Render) — le meilleur, zéro CORS
+  if (PROXY_URL) endpoints.push({ url: PROXY_URL.replace(/\/$/'') + '/ai', direct: false });
+
+  // 2. Appel direct (fonctionne dans Claude.ai artifacts, pas GitHub Pages)
+  endpoints.push({ url: 'https://api.anthropic.com/v1/messages', direct: true });
+
+  // 3. Proxies CORS publics (fallback, parfois instables)
+  endpoints.push({ url: 'https://corsproxy.io/?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), direct: false });
+  endpoints.push({ url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'), direct: false });
+
+  let lastError = '';
+  for (const ep of endpoints) {
     try {
-      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body });
-      if (!r.ok) { const e = await r.json().catch(()=>{}); console.warn(url, r.status, e); continue; }
+      const r = await fetch(ep.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: AbortSignal.timeout(30000), // 30s timeout
+      });
+
+      if (!r.ok) {
+        const errText = await r.text().catch(() => '');
+        let errJson = {};
+        try { errJson = JSON.parse(errText); } catch(_) {}
+        const msg = errJson?.error?.message || errText.slice(0, 100) || `HTTP ${r.status}`;
+        lastError = msg;
+        console.warn(`[${ep.url}] ${r.status}:`, msg);
+        // 401 = clé API invalide, inutile d'essayer les autres
+        if (r.status === 401) throw new Error('Clé API invalide (401)');
+        continue;
+      }
+
       const d = await r.json();
-      if (d.error) { console.warn('API error:', d.error); continue; }
-      return d;
-    } catch(e) { console.warn('fetch fail', url, e); }
+      if (d.error) {
+        lastError = d.error.message || JSON.stringify(d.error);
+        console.warn(`[${ep.url}] API error:`, d.error);
+        continue;
+      }
+      if (!d.content) {
+        lastError = 'Réponse vide de l\'API';
+        continue;
+      }
+      return d; // ✅ succès
+
+    } catch(e) {
+      if (e.name === 'AbortError') { lastError = 'Timeout (30s)'; }
+      else if (e.message.includes('401')) throw e;
+      else lastError = e.message;
+      console.warn(`[${ep.url}] fetch fail:`, e.message);
+    }
   }
-  throw new Error('API inaccessible');
+
+  // Tous les endpoints ont échoué
+  if (!PROXY_URL) {
+    throw new Error('API bloquée (CORS). Configure un proxy Render — voir le fichier proxy/server.js fourni.');
+  }
+  throw new Error('API inaccessible. Vérifie que ton proxy Render est bien démarré. Détail: ' + lastError);
 }
 
 function parseJSON(raw) {
